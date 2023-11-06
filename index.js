@@ -2,10 +2,14 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
+require("dotenv").config();
 
 const app = express();
-app.use(cors());
 
+const harperSaveMessage = require("./services/harper-save-message");
+const harperGetMessages = require("./services/harper-get-messages");
+
+app.use(cors());
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -36,7 +40,7 @@ io.on("connection", (socket) => {
     });
 
     socket.emit("receive_message", {
-      message: `${userName}`,
+      message: `Welcome ${userName}`,
       userName: CHAT_BOT,
       __createdtime__,
     });
@@ -46,6 +50,20 @@ io.on("connection", (socket) => {
     chatRoomUsers = allUsers.filter((user) => user.room === room);
     socket.to(room).emit("chatroom_users", chatRoomUsers);
     socket.emit("chatroom_users", chatRoomUsers);
+  });
+
+  socket.on("send_message", (data) => {
+    const { message, userName, room, __createdtime__ } = data;
+    io.in(room).emit("receive_message", data);
+    harperSaveMessage(message, userName, room, __createdtime__)
+      .then((response) => console.log(response))
+      .catch((err) => console.log(err));
+
+    harperGetMessages(room)
+      .then((last100Messages) => {
+        socket.emit("last_100_messages", last100Messages);
+      })
+      .catch((err) => console.log(err));
   });
 });
 
